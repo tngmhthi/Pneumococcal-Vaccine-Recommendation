@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pneumococcal Vaccine Recommendations</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            color: #444;
+        }
+        .form-container {
+            max-width: 750px;
+            margin: auto;
+            padding: 25px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+        }
+        button {
+            background-color: #6c757d;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+        }
+        button:hover {
+            background-color: #5a6268;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f7f3;
+            border: 1px solid #cde4eb;
+            color: #285c73;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .comorbidity-list {
+            margin-top: 10px;
+            list-style-type: square;
+            margin-left: 20px;
+        }
+        footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 0.9em;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pneumococcal Vaccine Recommendations</h1>
+    <div class="form-container">
+        <form id="vaccineForm">
+            <!-- Refresh Button -->
+            <div class="form-group">
+                <button type="button" id="refreshButton" onclick="location.reload()">Refresh</button>
+            </div>
+            <!-- Age Input -->
+            <div class="form-group">
+                <label for="age">Age:</label>
+                <input type="number" id="age" name="age" min="0" placeholder="Enter the patient's age" required oninput="showComorbiditySection()">
+            </div>
+
+            <!-- Comorbidities List -->
+            <div id="comorbiditiesInfoSection" class="form-group" style="display: none;">
+                <label>Relevant Comorbidities:</label>
+                <ul id="comorbidityList" class="comorbidity-list"></ul>
+            </div>
+
+            <!-- Comorbidities Question -->
+            <div id="comorbiditySection" class="form-group" style="display: none;">
+                <label>Does the patient have any comorbidities?</label>
+                <select id="hasComorbidities" onchange="showVaccineHistorySection()" required>
+                    <option value="">Select</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                </select>
+            </div>
+
+            <!-- Vaccine History -->
+            <div id="vaccineHistorySection" class="form-group" style="display: none;">
+                <label>Has the patient received a pneumococcal vaccine before?</label>
+                <select id="previousVaccine" onchange="toggleVaccineTypeSection()" required>
+                    <option value="">Select</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                </select>
+            </div>
+
+            <!-- Vaccine Type -->
+            <div id="vaccineTypeSection" class="form-group" style="display: none;">
+                <label>If yes, which vaccine did the patient receive?</label>
+                <select id="vaccineType" required>
+                    <option value="">Select</option>
+                    <option value="PCV13">PCV13</option>
+                    <option value="PCV15">PCV15</option>
+                    <option value="PCV20">PCV20</option>
+                    <option value="PPSV23">PPSV23</option>
+                    <option value="PCV21">PCV21</option> 
+                </select>
+            </div>
+
+            <!-- Recommendation -->
+            <button type="button" id="recommendButton" style="display: none;" onclick="determineRecommendation()">Get Recommendation</button>
+        </form>
+
+        <div class="result" id="result" style="display: none;"></div>
+    </div>
+
+    <footer>
+        <p><strong>Source:</strong> Centers for Disease Control and Prevention (CDC). <a href="https://www.cdc.gov/vaccines/vpd/pneumo/index.html" target="_blank">Pneumococcal Vaccination Recommendations</a></p>
+    </footer>
+
+    <script>
+        const comorbidities = {
+            pediatric: {
+                riskConditions: [
+                    "Chronic heart disease",
+                    "Chronic lung disease (including asthma treated with prolonged corticosteroids)",
+                    "Diabetes mellitus",
+                    "Cerebrospinal fluid leaks",
+                    "Cochlear implants"
+                ],
+                immunocompromisedConditions: [
+                    "HIV infection",
+                    "Cancer (malignant neoplasms)",
+                    "Nephrotic syndrome",
+                    "Chronic renal failure",
+                    "Asplenia (congenital or acquired)",
+                    "Solid organ transplantation",
+                    "Immunosuppressive therapy"
+                ]
+            },
+            adult: {
+                riskConditions: [
+                    "Chronic heart disease",
+                    "Chronic lung disease (e.g., COPD, emphysema)",
+                    "Diabetes mellitus",
+                    "Chronic liver disease (including cirrhosis)",
+                    "Alcoholism",
+                    "Cigarette smoking"
+                ],
+                immunocompromisedConditions: [
+                    "HIV infection",
+                    "Hematologic cancers (e.g., leukemia, lymphoma)",
+                    "Chronic renal failure or nephrotic syndrome",
+                    "Asplenia (congenital or acquired)",
+                    "Solid organ transplantation",
+                    "Immunosuppressive therapy"
+                ]
+            }
+        };
+
+        function showComorbiditySection() {
+            const age = parseInt(document.getElementById("age").value);
+            const comorbidityList = document.getElementById("comorbidityList");
+            const comorbidityInfo = document.getElementById("comorbiditiesInfoSection");
+
+            if (age) {
+                let riskConditions, immunocompromisedConditions;
+
+                if (age < 19) {
+                    riskConditions = comorbidities.pediatric.riskConditions;
+                    immunocompromisedConditions = comorbidities.pediatric.immunocompromisedConditions;
+                } else {
+                    riskConditions = comorbidities.adult.riskConditions;
+                    immunocompromisedConditions = comorbidities.adult.immunocompromisedConditions;
+                }
+
+                const combinedConditions = [
+                    "<strong>Risk Conditions:</strong>",
+                    ...riskConditions.map(cond => `<li>${cond}</li>`),
+                    "<strong>Immunocompromised Conditions:</strong>",
+                    ...immunocompromisedConditions.map(cond => `<li>${cond}</li>`)
+                ].join("");
+
+                comorbidityList.innerHTML = combinedConditions;
+                comorbidityInfo.style.display = "block";
+                document.getElementById("comorbiditySection").style.display = "block";
+            }
+        }
+
+        function showVaccineHistorySection() {
+            document.getElementById("vaccineHistorySection").style.display = "block";
+        }
+
+        function toggleVaccineTypeSection() {
+            const previousVaccine = document.getElementById("previousVaccine").value;
+            document.getElementById("vaccineTypeSection").style.display = previousVaccine === "yes" ? "block" : "none";
+            document.getElementById("recommendButton").style.display = "block";
+        }
+
+        function determineRecommendation() {
+            const age = parseInt(document.getElementById("age").value);
+            const hasComorbidities = document.getElementById("hasComorbidities").value;
+            const previousVaccine = document.getElementById("previousVaccine").value;
+            const vaccineType = document.getElementById("vaccineType").value;
+
+            let recommendation = "";
+            
+            if (age < 5) {
+                recommendation = `
+                    For children under 5 years:
+                    <ul>
+                        <li>Administer a 4-dose series of PCV15 or PCV20 at 2, 4, 6, and 12–15 months.</li>
+                        <li>If the child missed doses or started late, provide catch-up vaccinations based on age.</li>
+                    </ul>
+                `;
+            } else if (age >= 2 && age <= 18) {
+                if (hasComorbidities === "yes") {
+                    recommendation = `
+                        For children aged 2–18 years with risk conditions:
+                        <ul>
+                            <li>Administer PCV13 or PCV15.</li>
+                            <li>Follow with PPSV23 at least 8 weeks after completing the PCV series.</li>
+                        </ul>
+                    `;
+                } else {
+                    recommendation = `
+                        For healthy children aged 2–18 years:
+                        <ul>
+                            <li>Ensure completion of PCV13 or PCV15 series if not already done.</li>
+                        </ul>
+                    `;
+                }
+            } else if (age >= 19 && age <= 49) {
+                if (hasComorbidities === "yes") {
+                    recommendation = `
+                        For adults aged 19–49 years with chronic medical conditions:
+                        <ul>
+                            <li>Administer PCV20 or PCV21.</li>
+                            <li>If PCV15 is used, follow with PPSV23 after at least 8 weeks.</li>
+                        </ul>
+                    `;
+                } else {
+                    recommendation = `
+                        For healthy adults aged 19–49 years:
+                        <ul>
+                            <li>Vaccination is not routinely recommended unless new risk factors arise.</li>
+                        </ul>
+                    `;
+                }
+            } else if (age >= 50) {
+                if (previousVaccine === "no") {
+                    recommendation = `
+                        For adults aged 50 years or older with no prior pneumococcal vaccination:
+                        <ul>
+                            <li>Administer PCV20 or PCV21 as a single dose.</li>
+                            <li>Alternatively, administer PCV15 followed by PPSV23 after 1 year.</li>
+                        </ul>
+                    `;
+                } else if (previousVaccine === "yes") {
+                    if (vaccineType === "PCV20" || vaccineType === "PCV21") {
+                        recommendation = `
+                            For adults aged 50 years or older who have already received ${vaccineType}:
+                            <ul>
+                                <li>No additional pneumococcal vaccines are required.</li>
+                            </ul>
+                        `;
+                    } else if (vaccineType === "PPSV23"|| vaccineType === "PCV13") {
+                        recommendation = `
+                            For adults aged 50 years or older who previously received PPSV23:
+                            <ul>
+                                <li>Administer PCV21 or PCV20 if they have received both PCV13 (but not PCV15, PCV20, or PCV21) at any age and PPSV23 at or after the age of 65 years old.</li>
+                            </ul>
+                        `;
+                    } else if (vaccineType === "PCV15") {
+                        recommendation = `
+                            For adults aged 50 years or older who previously received PCV15:
+                            <ul>
+                                <li>Administer PPSV23 least 1 year after the last PCV15 dose.</li>
+                            </ul>
+                        `;
+                    }
+                }
+            }
+
+            document.getElementById("result").innerHTML = `
+                <strong>Recommendation:</strong><br>${recommendation}
+            `;
+            document.getElementById("result").style.display = "block";
+      }
+    </script>
+</body>
+</html>
